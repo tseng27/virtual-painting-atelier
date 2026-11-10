@@ -1,5 +1,5 @@
 import type { LayerModel, LayerOp } from '../types';
-import type { PaintingEngine } from '../engine/PaintingEngine';
+import { drawImageOp, type PaintingEngine } from '../engine/PaintingEngine';
 import { LayerRaster } from '../layers/LayerRaster';
 import { StrokeSession } from '../strokes/StrokeSession';
 import { createCanvas, ctx2d, type Canvas2D } from '../engine/canvas';
@@ -13,7 +13,7 @@ export function buildSchedule(timeline: { layerId: string; op: LayerOp }[], maxG
   let t = 0;
   let prevEnd: number | null = null;
   for (const { layerId, op } of timeline) {
-    const dur = op.type === 'stroke' ? Math.max(24, op.points.length ? op.points[op.points.length - 1].t : 0) : 250;
+    const dur = op.type === 'stroke' ? Math.max(24, op.points.length ? op.points[op.points.length - 1].t : 0) : op.type === 'image' ? 400 : 250;
     if (prevEnd !== null) t += Math.min(maxGap, Math.max(40, op.time - prevEnd));
     items.push({ layerId, op, start: t, dur });
     t += dur;
@@ -83,6 +83,11 @@ export class ReplayPlayer {
         const env = this.env(it.layerId);
         env.layerCtx.clearRect(0, 0, env.width, env.height);
         env.wet.clear();
+        this.cursor++;
+        continue;
+      }
+      if (it.op.type === 'image') {
+        drawImageOp(this.env(it.layerId).layerCtx, it.op, this.engine.images.get(it.op.id));
         this.cursor++;
         continue;
       }

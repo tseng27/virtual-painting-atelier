@@ -4,6 +4,14 @@ import { getEngine } from '../../state/session';
 import { Icon } from '../Icon';
 import { t } from '../../i18n';
 import type { LayerModel } from '../../painting/types';
+import { importImageFile } from '../../painting/engine/importImage';
+
+export async function importBase(file: File) {
+  const e = getEngine();
+  if (!e) return;
+  const app = useApp.getState();
+  try { await importImageFile(e, file); app.showToast(t('layers.imported')); } catch (err) { console.error(err); app.showToast(t('layers.importError')); }
+}
 
 function Thumb({ layerId, rev }: { layerId: string; rev: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -25,6 +33,7 @@ export function LayersPanel() {
   const rev = useApp((s) => s.docRev);
   const [editing, setEditing] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const e = getEngine();
   if (!e) return null;
   const layers = [...e.layers].reverse(); // top first
@@ -62,6 +71,10 @@ export function LayersPanel() {
         <button className="icon-btn" title={t('layers.down')} aria-label={t('layers.down')} onClick={() => e.moveLayer(active.id, -1)}><Icon name="down" /></button>
         <button className="icon-btn" title={t('layers.clear')} aria-label={t('layers.clear')} data-testid="layer-clear" onClick={() => setConfirmClear(true)}><Icon name="clear" /></button>
       </div>
+      <button className="btn sm" style={{ width: '100%', marginTop: 8 }} data-testid="import-base" title={t('layers.importHint')} onClick={() => fileRef.current?.click()}>
+        <Icon name="image" size={16} />{t('layers.importBase')}
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" hidden data-testid="import-base-input" onChange={(ev) => { const f = ev.target.files?.[0]; if (f) void importBase(f); ev.target.value = ''; }} />
       {confirmClear && (
         <div style={{ marginTop: 8 }}>
           <p className="small" style={{ margin: '0 0 6px' }}>{t('layers.clearConfirm')}</p>

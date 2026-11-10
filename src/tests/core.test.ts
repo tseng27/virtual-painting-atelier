@@ -72,6 +72,11 @@ describe('Project serialization', () => {
     const bad = structuredClone(good); (bad.layers[0].ops[0] as { pts: number[] }).pts.push(1);
     expect(validateProject(bad).ok).toBe(false);
     expect(validateProject(null).ok).toBe(false);
+    const withImage = structuredClone(good);
+    (withImage.layers[0].ops as unknown[]).unshift({ type: 'image', id: 'i', seq: 0, time: 0, layerId: 'L', src: 'data:image/png;base64,AAAA', x: 0, y: 0, w: 100, h: 50 });
+    expect(validateProject(withImage).ok).toBe(true);
+    (withImage.layers[0].ops[0] as { src: string }).src = 'javascript:alert(1)';
+    expect(validateProject(withImage).ok).toBe(false);
   });
 });
 

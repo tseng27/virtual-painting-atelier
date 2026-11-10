@@ -45,7 +45,13 @@ export interface Stroke {
 }
 
 export interface ClearOp { type: 'clear'; id: string; seq: number; time: number; layerId: string }
-export type LayerOp = Stroke | ClearOp;
+/** An imported picture placed on a layer (e.g. a base/reference image, 底圖). */
+export interface ImageOp {
+  type: 'image'; id: string; seq: number; time: number; layerId: string;
+  src: string;                               // data URL, already downscaled to fit the canvas
+  x: number; y: number; w: number; h: number; // placement in canvas px
+}
+export type LayerOp = Stroke | ClearOp | ImageOp;
 
 export interface LayerModel {
   id: string;

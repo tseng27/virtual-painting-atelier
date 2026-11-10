@@ -63,6 +63,11 @@ export const zhTW = {
   'layers.title': '圖層', 'layers.add': '新增圖層', 'layers.delete': '刪除圖層', 'layers.rename': '重新命名',
   'layers.up': '上移', 'layers.down': '下移', 'layers.visible': '顯示／隱藏', 'layers.opacity': '圖層不透明度',
   'layers.clear': '清除此圖層', 'layers.reset': '重設畫布', 'layers.resetConfirm': '確定要清除所有圖層的內容嗎？（可復原）',
+  'layers.importBase': '匯入圖片當底圖',
+  'layers.importHint': '支援 JPG、PNG、WebP，也可以直接把圖片拖進畫布。底圖會放在最下層、半透明，可調整透明度、隱藏或刪除。',
+  'layers.importError': '無法匯入：請選擇圖片檔（JPG／PNG／WebP，30 MB 以內）。',
+  'layers.imported': '已匯入底圖，可在圖層面板調整透明度。',
+  'layers.dropHere': '放開以匯入底圖',
   'layers.clearConfirm': '確定要清除此圖層嗎？（可復原）',
 
   'color.title': '調色盤', 'color.hex': 'HEX', 'color.common': '常用顏色', 'color.custom': '我的色票', 'color.addSwatch': '加入目前顏色',

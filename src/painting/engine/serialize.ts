@@ -5,7 +5,7 @@ export const PROJECT_VERSION = 1;
 const PT_FIELDS = 7; // x y p tx ty t d
 
 export type SerializedStroke = Omit<Stroke, 'points'> & { pts: number[] };
-export type SerializedOp = SerializedStroke | Extract<LayerOp, { type: 'clear' }>;
+export type SerializedOp = SerializedStroke | Extract<LayerOp, { type: 'clear' }> | Extract<LayerOp, { type: 'image' }>;
 
 export interface SerializedLayer {
   id: string;
@@ -47,13 +47,13 @@ export function unpackPoints(pts: number[]): StrokePoint[] {
 }
 
 export function serializeOp(op: LayerOp): SerializedOp {
-  if (op.type === 'clear') return { ...op };
+  if (op.type === 'clear' || op.type === 'image') return { ...op };
   const { points, ...rest } = op;
   return { ...rest, settings: { ...rest.settings }, pts: packPoints(points) };
 }
 
 export function deserializeOp(op: SerializedOp): LayerOp {
-  if (op.type === 'clear') return { ...op };
+  if (op.type === 'clear' || op.type === 'image') return { ...op };
   const { pts, ...rest } = op;
   return { ...rest, points: unpackPoints(pts) } as Stroke;
 }
@@ -79,6 +79,10 @@ export function validateProject(data: unknown): { ok: true; project: ProjectFile
     if (!Array.isArray(l.ops)) errors.push(`layers[${i}].ops`);
     else l.ops.forEach((op, j) => {
       if (op.type === 'clear') { if (!isNum(op.seq)) errors.push(`layers[${i}].ops[${j}]`); return; }
+      if (op.type === 'image') {
+        if (!isNum(op.seq) || !isStr(op.src) || !op.src.startsWith('data:image/') || ![op.x, op.y, op.w, op.h].every(isNum)) errors.push(`layers[${i}].ops[${j}]`);
+        return;
+      }
       if (op.type !== 'stroke' || !KINDS.includes(op.kind) || !Array.isArray(op.pts) || op.pts.length % PT_FIELDS !== 0 || !isStr(op.color) || !isNum(op.seed))
         errors.push(`layers[${i}].ops[${j}]`);
     });

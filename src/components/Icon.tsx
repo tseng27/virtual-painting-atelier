@@ -31,6 +31,7 @@ const P: Record<string, string> = {
   upload: 'M12 21V9M7 14l5-5 5 5M4 3h16',
   fit: 'M4 4h6M4 4v6M20 20h-6M20 20v-6M20 4h-6M20 4v6M4 20h6M4 20v-6',
   video: 'M3 6h12v12H3zM15 10l6-3v10l-6-3',
+  image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15.5 9.5h.01',
   help: 'M12 21a9 9 0 100-18 9 9 0 000 18zM9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01',
 };
 export function Icon({ name, size }: { name: keyof typeof P | string; size?: number }) {

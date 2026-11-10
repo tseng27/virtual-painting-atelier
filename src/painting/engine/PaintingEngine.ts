@@ -1,4 +1,4 @@
-import type { BrushSettings, DocMeta, LayerModel, LayerOp, Stroke, StrokePoint } from '../types';
+import type { BrushSettings, DocMeta, ImageOp, LayerModel, LayerOp, Stroke, StrokePoint } from '../types';
 import { SurfaceRuntime } from '../surfaces/SurfaceRuntime';
 import { LayerRaster } from '../layers/LayerRaster';
 import { History } from '../history/History';
@@ -46,6 +46,8 @@ export class PaintingEngine {
   private listeners = new Map<EngineEvent, Set<() => void>>();
   private sessionStart = performance.now();
   private elapsedBase: number;
+  /** decoded pictures for image ops (needed to re-render layers synchronously) */
+  readonly images = new Map<string, CanvasImageSource>();
   /** increments on every content change (used for autosave) */
   revision = 0;
 
@@ -161,6 +163,7 @@ export class PaintingEngine {
   private applyOp(layerId: string, op: LayerOp) {
     const env = this.envFor(layerId);
     if (op.type === 'clear') { env.layerCtx.clearRect(0, 0, this.width, this.height); env.wet.clear(); return; }
+    if (op.type === 'image') { drawImageOp(env.layerCtx, op, this.images.get(op.id)); return; }
     const s = new StrokeSession(op, env);
     s.finish();
   }
@@ -198,6 +201,29 @@ export class PaintingEngine {
     }
     this.history.push({ kind: 'batch', entries });
     this.changed();
+  }
+
+  /**
+   * Imports a picture as a base/reference layer (底圖): a new layer at the bottom of the stack,
+   * semi-transparent so it can be traced over. One undoable step.
+   */
+  importBaseImage(src: string, img: CanvasImageSource, natural: { w: number; h: number }, opts: { name?: string; opacity?: number; fit?: 'contain' | 'cover' } = {}) {
+    const fit = opts.fit ?? 'contain';
+    const s = fit === 'contain' ? Math.min(this.width / natural.w, this.height / natural.h) : Math.max(this.width / natural.w, this.height / natural.h);
+    const w = natural.w * s, h = natural.h * s;
+    const layer = this.makeLayer(opts.name ?? '底圖');
+    layer.opacity = opts.opacity ?? 0.6;
+    this.layers.unshift(layer);
+    const op: ImageOp = { type: 'image', id: uid('img'), seq: this.meta.seq++, time: Math.round(this.now()), layerId: layer.id, src, x: (this.width - w) / 2, y: (this.height - h) / 2, w, h };
+    this.images.set(op.id, img);
+    this.applyOp(layer.id, op);
+    this.commitOp(layer, op);
+    this.history.push({ kind: 'batch', entries: [
+      { kind: 'addLayer', layer, raster: this.rasters.get(layer.id)!, index: 0 },
+      { kind: 'op', layerId: layer.id, op },
+    ] });
+    this.changed(true);
+    return layer;
   }
 
   // ── layers ──────────────────────────────────────────────────────────────
@@ -302,6 +328,7 @@ export class PaintingEngine {
       case 'op': {
         const layer = this.layers.find((l) => l.id === e.layerId);
         if (!layer) return;
+        if (layer.ops.includes(e.op)) return;
         this.applyOp(layer.id, e.op);
         this.commitOp(layer, e.op);
         break;
@@ -390,6 +417,9 @@ export class PaintingEngine {
       e.layers.push(layer);
       const r = new LayerRaster(e.width, e.height);
       e.rasters.set(layer.id, r);
+      for (const op of layer.ops) if (op.type === 'image' && !e.images.has(op.id)) {
+        try { e.images.set(op.id, await loadImage(op.src)); } catch { /* corrupt image: skipped */ }
+      }
       let drawn = false;
       if (sl.raster) {
         try {
@@ -415,3 +445,15 @@ async function loadImage(src: string | Blob): Promise<CanvasImageSource> {
     img.src = src;
   });
 }
+
+export function drawImageOp(ctx: CanvasRenderingContext2D, op: ImageOp, img: CanvasImageSource | undefined) {
+  if (!img) return;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, op.x, op.y, op.w, op.h);
+  ctx.restore();
+}
+
+export { loadImage };

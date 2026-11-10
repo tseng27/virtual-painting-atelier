@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../../state/store';
 import { getEngine, saveNow, scheduleSave } from '../../state/session';
 import { CanvasView } from './CanvasView';
@@ -8,6 +8,7 @@ import { BottomBar } from './BottomBar';
 import { MediaDrawer } from './MediaDrawer';
 import { ColorPanel } from './ColorPanel';
 import { Icon } from '../Icon';
+import { importBase } from './LayersPanel';
 import { t } from '../../i18n';
 
 export function PaintScreen({ onBack }: { onBack: () => void }) {
@@ -16,6 +17,7 @@ export function PaintScreen({ onBack }: { onBack: () => void }) {
   const mediaOpen = useApp((s) => s.mediaOpen);
   const colorOpen = useApp((s) => s.colorOpen);
   const set = useApp((s) => s.set);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     const onSave = () => scheduleSave(100);
@@ -53,7 +55,11 @@ export function PaintScreen({ onBack }: { onBack: () => void }) {
   return (
     <div className={`paint${focus ? ' focus' : ''}${rightOpen ? '' : ' side-closed'}`} data-testid="paint-screen">
       <Toolbar />
-      <div style={{ gridColumn: 2, gridRow: 1, position: 'relative', minHeight: 0, minWidth: 0, display: 'grid' }}>
+      <div style={{ gridColumn: 2, gridRow: 1, position: 'relative', minHeight: 0, minWidth: 0, display: 'grid' }}
+        onDragOver={(ev) => { if ([...ev.dataTransfer.items].some((i) => i.kind === 'file')) { ev.preventDefault(); setDragging(true); } }}
+        onDragLeave={(ev) => { if (ev.currentTarget === ev.target || !ev.currentTarget.contains(ev.relatedTarget as Node)) setDragging(false); }}
+        onDrop={(ev) => { ev.preventDefault(); setDragging(false); const f = [...ev.dataTransfer.files].find((x) => x.type.startsWith('image/')); if (f) void importBase(f); }}>
+        {dragging && <div className="drop-hint">{t('layers.dropHere')}</div>}
         <CanvasView />
         {mediaOpen && <MediaDrawer />}
         {colorOpen && <ColorPanel />}

@@ -205,3 +205,53 @@ test('11. touch: one finger paints a full stroke, two fingers pinch-zoom without
   expect(await page.evaluate(() => (window as any).__atelier.engine.strokeCount)).toBe(1);
   await ctx.close();
 });
+
+test('12. import an image as a base layer (底圖): undoable, saved, replayed', async ({ page }) => {
+  await newCanvas(page, { size: 'square' });
+  // a 400×200 test picture (red left half, blue right half)
+  const b64 = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 400; c.height = 200;
+    const x = c.getContext('2d')!; x.fillStyle = '#d02020'; x.fillRect(0, 0, 200, 200); x.fillStyle = '#2040d0'; x.fillRect(200, 0, 200, 200);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  const activeBefore = await page.evaluate(() => (window as any).__atelier.engine.activeLayerId);
+  await page.getByTestId('import-base-input').setInputFiles({ name: 'ref.png', mimeType: 'image/png', buffer: Buffer.from(b64, 'base64') });
+  await expect(page.getByTestId('layer-row')).toHaveCount(2);
+  const info = await page.evaluate(() => {
+    const e = (window as any).__atelier.engine;
+    const base = e.layers[0];
+    const px = (x: number, y: number) => Array.from(e.rasters.get(base.id).canvas.getContext('2d').getImageData(x, y, 1, 1).data);
+    return { name: base.name, opacity: base.opacity, active: e.activeLayerId, left: px(300, 700), right: px(1100, 700), outside: px(700, 100) };
+  });
+  expect(info.name).toContain('底圖');
+  expect(info.opacity).toBeCloseTo(0.6);
+  expect(info.active).toBe(activeBefore);               // painting continues on the user's layer
+  expect(info.left[0]).toBeGreaterThan(180); expect(info.left[2]).toBeLessThan(80);
+  expect(info.right[2]).toBeGreaterThan(180);
+  expect(info.outside[3]).toBe(0);                       // fitted with letterbox (2:1 into square)
+  // drawing still lands on the top layer, not the base
+  await draw(page, line(200, 700, 1200, 700));
+  expect((await layerStats(page, { x: 0, y: 0, w: 1400, h: 1400 }, 1)).covered).toBeGreaterThan(300);
+  await page.getByTestId('undo').click();               // stroke
+  await page.getByTestId('undo').click();               // import
+  await expect(page.getByTestId('layer-row')).toHaveCount(1);
+  await page.getByTestId('redo').click();
+  await expect(page.getByTestId('layer-row')).toHaveCount(2);
+  expect((await layerStats(page, { x: 0, y: 0, w: 1400, h: 1400 }, 0)).covered).toBeGreaterThan(100000);
+  // persists across reload
+  await page.evaluate(() => (window as any).__atelier.saveNow());
+  await page.reload();
+  await page.getByTestId('home-continue').click();
+  await page.waitForFunction(() => !!(window as any).__atelier?.engine);
+  expect((await layerStats(page, { x: 0, y: 0, w: 1400, h: 1400 }, 0)).covered).toBeGreaterThan(100000);
+  // replay shows the base picture
+  await page.getByTestId('open-replay').click();
+  await expect(page.getByTestId('replay-progress')).toContainText('1/1', { timeout: 15000 });
+  const blueish = await page.evaluate(() => {
+    const c = document.querySelector('[data-testid=replay-dialog] canvas') as HTMLCanvasElement;
+    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 2] - d[i] > 40) n++;
+    return n;
+  });
+  expect(blueish).toBeGreaterThan(5000);
+});
